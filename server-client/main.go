@@ -10,16 +10,22 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-func writeString(conn io.Writer, str string) error {
+func writeString(conn io.Writer, str string, key byte) error {
 	data := []byte(str)
 
 	buf := make([]byte, 4)
 
 	binary.LittleEndian.PutUint32(buf, uint32(len(data)))
+	for i, b := range buf {
+		buf[i] = b ^ key
+	}
 	if _, err := conn.Write(buf); err != nil {
 		return err
 	}
 
+	for i, b := range data {
+		data[i] = b ^ key
+	}
 	if _, err := conn.Write(data); err != nil {
 		return err
 	}
@@ -27,10 +33,13 @@ func writeString(conn io.Writer, str string) error {
 	return nil
 }
 
-func readString(conn io.Reader) (string, error) {
+func readString(conn io.Reader, key byte) (string, error) {
 	buf := make([]byte, 4)
 	if _, err := io.ReadFull(conn, buf); err != nil {
 		return "", err
+	}
+	for i, b := range buf {
+		buf[i] = b ^ key
 	}
 
 	len := int(binary.LittleEndian.Uint32(buf))
@@ -38,6 +47,9 @@ func readString(conn io.Reader) (string, error) {
 	buf = make([]byte, len)
 	if _, err := io.ReadFull(conn, buf); err != nil {
 		return "", err
+	}
+	for i, b := range buf {
+		buf[i] = b ^ key
 	}
 
 	return string(buf), nil
@@ -56,18 +68,25 @@ func server() {
 	}
 	defer conn.Close()
 
-	str, err := readString(conn)
+	buf := make([]byte, 6)
+	if _, err := io.ReadFull(conn, buf); err != nil {
+		log.Fatal(err)
+	}
+
+	key := buf[5]
+
+	str, err := readString(conn, key)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	if err := writeString(conn, "Re: "+str); err != nil {
+	if err := writeString(conn, "Re: "+str, key); err != nil {
 		log.Fatal(err)
 	}
 
 	fmt.Println(str)
 
-	str, err = readString(conn)
+	str, err = readString(conn, key)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -82,15 +101,21 @@ func client() {
 	}
 	defer conn.Close()
 
-	if err := writeString(conn, "hogehoge"); err != nil {
+	if _, err := conn.Write([]byte("HELLOa")); err != nil {
 		log.Fatal(err)
 	}
 
-	if err := writeString(conn, "piyopiyo"); err != nil {
+	key := byte('a')
+
+	if err := writeString(conn, "hogehoge", key); err != nil {
 		log.Fatal(err)
 	}
 
-	str, err := readString(conn)
+	if err := writeString(conn, "piyopiyo", key); err != nil {
+		log.Fatal(err)
+	}
+
+	str, err := readString(conn, key)
 	if err != nil {
 		log.Fatal(err)
 	}
