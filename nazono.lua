@@ -1,3 +1,5 @@
+local bit = require("bit")
+
 local nazono = Proto("nazono", "Nazono Protocol")
 
 f_length = ProtoField.new("Length", "nazono.length", ftypes.UINT32)
@@ -7,23 +9,11 @@ nazono.fields = { f_length, f_data }
 
 local tcp_stream = Field.new("tcp.stream")
 
-function bitxor(b1, b2)
-    local result = 0
-    for i = 0, 7 do
-        if (b1 % 2) ~= (b2 % 2) then
-            result = result + 2^i
-        end
-        b1 = math.floor(b1 / 2)
-        b2 = math.floor(b2 / 2)
-    end
-    return result
-end
-
 function decode(buffer, key)
     local result = ByteArray.new()
     for i = 1, buffer:len() do
         result:set_size(result:len() + 1)
-        result:set_index(i - 1, bitxor(buffer(i - 1, 1):uint(), key))
+        result:set_index(i - 1, bit.bxor(buffer(i - 1, 1):uint(), key))
     end
     return result
 end
