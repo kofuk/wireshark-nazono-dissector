@@ -38,23 +38,23 @@ function nazono.dissector(buffer, pinfo, tree)
     local stream = tcp_stream().value
     local state = states[stream]
     if state == nil then
-        if pinfo.dst_port == 8001 then
-            -- First packet must be sent from client to server
-            return
-        end
+        -- In this implementation, the side that sends the first packet is considered the client.
+        -- Alternatively, the side using port 8001 could be considered the server.
+
+        local client_ip = pinfo.src
+        local client_port = pinfo.src_port
 
         if buffer:len() < 6  then
             pinfo.desegment_len = DESEGMENT_ONE_MORE_SEGMENT
             return buffer:len()
         end
 
-        local initialized = buffer:raw(0, 5) == "HELLO"
-        if not initialized then
+        if buffer:raw(0, 5) ~= "HELLO" then
             -- Magic number is not present
             return
         end
 
-        states[stream] = { key = buffer(5, 1):uint() }
+        states[stream] = { key = buffer(5, 1):uint(), client_ip = client_ip, client_port = client_port }
         buffer = buffer(6):tvb()
     end
 
